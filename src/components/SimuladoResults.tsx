@@ -3,31 +3,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2 } from "lucide-react";
-import { Question } from "../types/Question";
+import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { Question, MongoQuestion } from "../types/Question";
+import { ExamDetails } from "../services/examApi";
+import { questionsApiService } from "../services/questionsApi";
 import QuestionChatDialog from "./QuestionChatDialog";
 
-
 interface SimuladoResultsProps {
-  questions: Question[];
-  answers: Record<string, number>;
-  timeSpent: number;
+  examDetails: ExamDetails; // Mudança: agora recebe ExamDetails ao invés de questions/answers separados
+  questions: Question[]; // Mantido para compatibilidade com QuestionChatDialog
   onRestart: () => void;
   onNewSimulado: () => void;
+  onReplicate: (existingExamId: string) => Promise<void>;
 }
 
 export default function SimuladoResults({ 
-  questions, 
-  answers, 
-  timeSpent, 
+  examDetails,
+  questions,
   onRestart, 
   onNewSimulado 
+  , onReplicate
 }: SimuladoResultsProps) {
+  const [isReplicating, setIsReplicating] = useState(false);
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
+  const [questionDetails, setQuestionDetails] = useState<Record<string, MongoQuestion>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+  const [selectedQuestionForChat, setSelectedQuestionForChat] = useState<Question | null>(null);
   
-  const totalQuestions = questions.length;
-  const answeredQuestions = Object.keys(answers).length;
-  const correctAnswers = questions.filter(q => answers[q.id] === q.correctAnswer).length;
+  const totalQuestions = examDetails.total_questions;
+  const correctAnswers = examDetails.total_correct_answers;
+  const wrongAnswers = examDetails.total_wrong_answers;
   const score = Math.round((correctAnswers / totalQuestions) * 100);
+  
+  // Calcular tempo gasto (mock - pode ser adicionado ao ExamDetails no futuro)
+  const timeSpent = 3600; // 1 hora como exemplo
+  
+  // Converter questões do exame para estrutura compatível com o resultado
+  const answeredQuestions = examDetails.questions.length;
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -63,17 +75,60 @@ export default function SimuladoResults({
   };
 
   // Calculate performance by subject
+  // Calcular estatísticas por matéria baseado nos detalhes do exame
   const subjectStats = questions.reduce((acc, question) => {
     const subject = question.subject;
     if (!acc[subject]) {
       acc[subject] = { total: 0, correct: 0 };
     }
     acc[subject].total++;
-    if (answers[question.id] === question.correctAnswer) {
+    
+    // Buscar a resposta desta questão no examDetails
+    const examQuestion = examDetails.questions.find(eq => eq.question_id === question.id);
+    if (examQuestion && examQuestion.is_correct) {
       acc[subject].correct++;
     }
     return acc;
   }, {} as Record<string, { total: number; correct: number }>);
+
+  const handleQuestionClick = async (questionId: string) => {
+    const isExpanded = expandedQuestions.has(questionId);
+    
+    if (isExpanded) {
+      // Fechar questão
+      const newExpanded = new Set(expandedQuestions);
+      newExpanded.delete(questionId);
+      setExpandedQuestions(newExpanded);
+    } else {
+      // Expandir questão
+      const newExpanded = new Set(expandedQuestions);
+      newExpanded.add(questionId);
+      setExpandedQuestions(newExpanded);
+      
+      // Carregar detalhes se ainda não carregados
+      if (!questionDetails[questionId]) {
+        const newLoading = new Set(loadingDetails);
+        newLoading.add(questionId);
+        setLoadingDetails(newLoading);
+        
+        try {
+          const details = await questionsApiService.getQuestionById(questionId);
+          if (details) {
+            setQuestionDetails(prev => ({
+              ...prev,
+              [questionId]: details
+            }));
+          }
+        } catch (error) {
+          console.error('Erro ao carregar detalhes da questão:', error);
+        } finally {
+          const newLoading = new Set(loadingDetails);
+          newLoading.delete(questionId);
+          setLoadingDetails(newLoading);
+        }
+      }
+    }
+  };
 
 
 
@@ -103,7 +158,7 @@ export default function SimuladoResults({
                 <div className="text-sm text-gray-500">Corretas</div>
               </div>
               <div>
-                <div className="text-2xl text-red-600">{answeredQuestions - correctAnswers}</div>
+                <div className="text-2xl text-red-600">{wrongAnswers}</div>
                 <div className="text-sm text-gray-500">Incorretas</div>
               </div>
               <div>
@@ -189,66 +244,147 @@ export default function SimuladoResults({
           <CardContent>
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {questions.map((question, index) => {
-                const userAnswer = answers[question.id];
-                const isCorrect = userAnswer === question.correctAnswer;
-                const wasAnswered = userAnswer !== undefined;
-                const isIncorrect = wasAnswered && !isCorrect;
+                // Buscar a resposta desta questão no examDetails
+                const examQuestion = examDetails.questions.find(eq => eq.question_id === question.id);
+                const isCorrect = examQuestion?.is_correct || false;
+                const wasAnswered = examQuestion?.user_answer !== undefined;
+                const isExpanded = expandedQuestions.has(question.id);
+                const questionDetail = questionDetails[question.id];
+                const isLoading = loadingDetails.has(question.id);
                 
                 return (
-                  <div key={question.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Questão {index + 1}</span>
-                        <Badge 
-                          variant="secondary" 
-                          className={subjectColors[question.subject] || "bg-gray-100 text-gray-800"}
-                        >
-                          {question.subject.charAt(0).toUpperCase() + question.subject.slice(1)}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!wasAnswered ? (
-                          <Badge variant="outline" className="text-gray-500">
-                            Não respondida
+                  <div key={question.id} className="border rounded-lg">
+                    <div 
+                      className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => handleQuestionClick(question.id)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Questão {index + 1}</span>
+                          <Badge 
+                            variant="secondary" 
+                            className={subjectColors[question.subject] || "bg-gray-100 text-gray-800"}
+                          >
+                            {question.subject.charAt(0).toUpperCase() + question.subject.slice(1)}
                           </Badge>
-                        ) : isCorrect ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Correta
-                          </Badge>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-red-100 text-red-800">
-                              <XCircle className="w-3 h-3 mr-1" />
-                              Incorreta
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!wasAnswered ? (
+                            <Badge variant="outline" className="text-gray-500">
+                              Não respondida
                             </Badge>
-                            <QuestionChatDialog 
-                              question={question}
-                              isWrongAnswer={true}
-                            />
+                          ) : isCorrect ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Correta
+                            </Badge>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Incorreta
+                              </Badge>
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedQuestionForChat(question);
+                                }}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                              >
+                                <Wand2 className="w-4 h-4 mr-1" />
+                                AI
+                              </Button>
+                            </div>
+                          )}
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-gray-500" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm text-gray-600">
+                        {wasAnswered && (
+                          <div className="flex gap-4">
+                            <span>
+                              Sua resposta: {examQuestion?.user_answer || 'N/A'}
+                            </span>
+                            <span>
+                              Resposta correta: {examQuestion?.correct_answer || 'N/A'}
+                            </span>
                           </div>
+                        )}
+                        {!wasAnswered && (
+                          <span>
+                            Resposta correta: {examQuestion?.correct_answer || 'N/A'}
+                          </span>
                         )}
                       </div>
                     </div>
                     
-                    <div className="text-sm text-gray-600 mb-3">
-                      {wasAnswered && (
-                        <div className="flex gap-4">
-                          <span>
-                            Sua resposta: {String.fromCharCode(65 + userAnswer)}
-                          </span>
-                          <span>
-                            Resposta correta: {String.fromCharCode(65 + question.correctAnswer)}
-                          </span>
-                        </div>
-                      )}
-                      {!wasAnswered && (
-                        <span>
-                          Resposta correta: {String.fromCharCode(65 + question.correctAnswer)}
-                        </span>
-                      )}
-                    </div>
-
+                    {/* Detalhes expandidos da questão */}
+                    {isExpanded && (
+                      <div className="border-t bg-gray-50 p-4">
+                        {isLoading ? (
+                          <div className="text-center py-4">
+                            <span className="text-gray-500">Carregando detalhes...</span>
+                          </div>
+                        ) : questionDetail ? (
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="font-semibold text-gray-800 mb-2">Enunciado:</h4>
+                              <p className="text-gray-700 whitespace-pre-line">{questionDetail.context}</p>
+                            </div>
+                            
+                            {questionDetail.alternativesIntroduction && (
+                              <div>
+                                <h4 className="font-semibold text-gray-800 mb-2">Alternativas:</h4>
+                                <p className="text-gray-700 mb-2">{questionDetail.alternativesIntroduction}</p>
+                              </div>
+                            )}
+                            
+                            <div className="space-y-2">
+                              {questionDetail.alternatives && Array.isArray(questionDetail.alternatives) && questionDetail.alternatives.map((alt: any, altIndex: number) => (
+                                <div 
+                                  key={altIndex} 
+                                  className={`p-3 rounded border ${
+                                    alt.letter === examQuestion?.correct_answer 
+                                      ? 'bg-green-50 border-green-200' 
+                                      : alt.letter === examQuestion?.user_answer && !isCorrect
+                                      ? 'bg-red-50 border-red-200'
+                                      : 'bg-white border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span className="font-medium text-gray-700">
+                                      {alt.letter})
+                                    </span>
+                                    <span className="text-gray-700">{alt.text}</span>
+                                    {alt.letter === examQuestion?.correct_answer && (
+                                      <CheckCircle className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />
+                                    )}
+                                    {alt.letter === examQuestion?.user_answer && !isCorrect && (
+                                      <XCircle className="w-4 h-4 text-red-600 ml-auto flex-shrink-0" />
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            <div className="text-xs text-gray-500 pt-2 border-t">
+                              Ano: {questionDetail.year} | Disciplina: {questionDetail.discipline}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-4">
+                            <span className="text-red-500">Erro ao carregar detalhes da questão</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -258,9 +394,24 @@ export default function SimuladoResults({
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button onClick={onRestart} variant="outline" className="flex items-center gap-2">
+          <Button 
+            onClick={async () => {
+              setIsReplicating(true);
+              try {
+                await onReplicate(examDetails.id);
+              } catch (e) {
+                console.error('Erro ao refazer simulado:', e);
+                alert('Erro ao refazer simulado. Tente novamente.');
+              } finally {
+                setIsReplicating(false);
+              }
+            }}
+            variant="outline" 
+            className="flex items-center gap-2"
+            disabled={isReplicating}
+          >
             <RotateCcw className="w-4 h-4" />
-            Refazer Simulado
+            {isReplicating ? 'Refazendo...' : 'Refazer Simulado'}
           </Button>
           <Button onClick={onNewSimulado} className="flex items-center gap-2">
             <Home className="w-4 h-4" />
@@ -268,6 +419,15 @@ export default function SimuladoResults({
           </Button>
         </div>
       </div>
+      
+      {/* Chat Dialog desacoplado - FORA da div com max-w para ocupar toda a largura */}
+      {selectedQuestionForChat && (
+        <QuestionChatDialog 
+          question={selectedQuestionForChat}
+          isWrongAnswer={true}
+          onClose={() => setSelectedQuestionForChat(null)}
+        />
+      )}
     </div>
   );
 }

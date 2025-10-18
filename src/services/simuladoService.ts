@@ -1,45 +1,69 @@
 import { questionsApiService } from './questionsApi';
-import { Question, convertMongoQuestionToQuestion } from '../types/Question';
+import { examApiService, ExamCreateRequest } from './examApi';
+import { Question, convertMongoQuestionToQuestion, convertExamQuestionToQuestion } from '../types/Question';
 import { SimuladoConfig } from '../components/SimuladoBuilder';
 import { config } from '../config/app';
 
 export class SimuladoService {
-  async generateSimulado(simuladoConfig: SimuladoConfig): Promise<Question[]> {
+  async generateSimulado(simuladoConfig: SimuladoConfig): Promise<{ questions: Question[], examId: string }> {
     // Se configurado para usar dados mock, usar diretamente
     if (config.useMockData) {
       console.log('🔧 Usando dados MOCK - Configure VITE_USE_MOCK_DATA=false para usar dados reais');
-      return this.generateMockSimulado(simuladoConfig);
+      const questions = await this.generateMockSimulado(simuladoConfig);
+      return { questions, examId: 'mock-exam-id' };
     }
 
     try {
-      console.log('🌐 Tentando buscar questões reais da API...');
-      const totalQuestions = simuladoConfig.questionsPerSubject * simuladoConfig.subjects.length;
-      const questions: Question[] = [];
+      console.log('🌐 Tentando buscar questões reais da API usando sistema de exames...');
+      
+      // Para usar a API de exames, precisamos de um user_id
+      // Por enquanto vamos usar um ID fictício - em um app real isso viria da autenticação
+      const userId = '507f1f77bcf86cd799439011'; // ObjectId fictício
 
-      for (const subject of simuladoConfig.subjects) {
-        // Map frontend subjects to database disciplines
-        const discipline = this.mapSubjectToDiscipline(subject);
-        
-        // Get random questions for this discipline
-        const mongoQuestions = await questionsApiService.getRandomQuestions(
-          simuladoConfig.questionsPerSubject,
-          { 
-            discipline: discipline,
-            // Can add year filter if needed: year: simuladoConfig.year
-          }
-        );
+      // Criar o exame usando a API - COM ou SEM filtros de tópicos
+      const examRequest: ExamCreateRequest = {
+        user_id: userId,
+        question_count: Math.min(simuladoConfig.totalQuestions, 100), // Máximo de 100 questões
+        // Se há topicIds selecionados, enviar para a API
+        ...(simuladoConfig.topicIds && simuladoConfig.topicIds.length > 0 && {
+          topics: simuladoConfig.topicIds
+        })
+      };
 
-        // Convert to frontend format
-        const convertedQuestions = mongoQuestions.map(convertMongoQuestionToQuestion);
-        questions.push(...convertedQuestions);
+      console.log('🎯 Criando exame com configuração:', examRequest);
+      if (simuladoConfig.topicIds && simuladoConfig.topicIds.length > 0) {
+        console.log(`📚 Usando ${simuladoConfig.topicIds.length} tópicos filtrados`);
+      } else {
+        console.log('🎲 Seleção aleatória de questões (sem filtros de tópicos)');
       }
 
-      // If we don't have enough questions from specific subjects, fill with random ones
-      if (questions.length < totalQuestions) {
-        const remainingCount = totalQuestions - questions.length;
-        const additionalQuestions = await questionsApiService.getRandomQuestions(remainingCount);
-        const convertedAdditional = additionalQuestions.map(convertMongoQuestionToQuestion);
-        questions.push(...convertedAdditional);
+      // Criar o exame
+      const examResponse = await examApiService.createExam(examRequest);
+      console.log('✅ Exame criado:', examResponse);
+
+      // Buscar o exame para obter as questões (sem gabarito)
+      const examForUser = await examApiService.getExam(examResponse.exam_id, userId);
+      console.log('📋 Exame carregado:', examForUser);
+      console.log('📊 Número de questões no exame:', examForUser.questions?.length || 0);
+
+      // Converter as questões que já vêm no ExamForUser
+      const questions: Question[] = [];
+      
+      if (!examForUser.questions || examForUser.questions.length === 0) {
+        console.warn('⚠️ Exame não contém questões');
+        throw new Error('Exame criado mas sem questões');
+      }
+      
+      for (const examQuestion of examForUser.questions) {
+        try {
+          console.log('🔍 Processando questão:', examQuestion.id, examQuestion);
+          // Converter questão do exame para o formato esperado pelo frontend
+          const convertedQuestion = convertExamQuestionToQuestion(examQuestion, questions.length);
+          questions.push(convertedQuestion);
+          console.log('✅ Questão convertida:', convertedQuestion.title);
+        } catch (error) {
+          console.warn(`⚠️ Erro ao converter questão ${examQuestion.id}:`, error);
+        }
       }
 
       // Log das questões carregadas para debug
@@ -47,36 +71,31 @@ export class SimuladoService {
         console.log(`📝 Questão carregada: ${q.title} - ID: ${q.id}`);
       });
       
-      console.log(`✅ Carregadas ${questions.length} questões reais do banco de dados`);
-      // Shuffle questions to randomize order
-      return this.shuffleArray(questions).slice(0, totalQuestions);
+      console.log(`✅ Carregadas ${questions.length} questões reais do banco de dados via sistema de exames`);
+      
+      // Verificar se temos questões válidas
+      if (questions.length === 0) {
+        console.warn('⚠️ Nenhuma questão foi carregada, usando dados mock como fallback');
+        const mockQuestions = await this.generateMockSimulado(simuladoConfig);
+        return { questions: mockQuestions, examId: 'mock-exam-id' };
+      }
+      
+      return { questions, examId: examResponse.exam_id };
     } catch (error) {
-      console.error('❌ Erro ao buscar questões da API, usando dados mock:', error);
+      console.error('❌ Erro ao buscar questões da API de exames, usando dados mock:', error);
       // Fallback to mock data if API fails
-      return this.generateMockSimulado(simuladoConfig);
+      const mockQuestions = await this.generateMockSimulado(simuladoConfig);
+      return { questions: mockQuestions, examId: 'mock-exam-id' };
     }
   }
 
-  async getAvailableSubjects(): Promise<string[]> {
-    try {
-      const disciplines = await questionsApiService.getAvailableDisciplines();
-      return disciplines.map(this.mapDisciplineToSubject);
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
-      // Fallback to default subjects
-      return ['Matemática', 'Ciências da Natureza', 'Ciências Humanas', 'Linguagens'];
-    }
+  // Replicate an existing exam by creating a new exam with the same questions
+  async replicateExam(existingExamId: string, questionCount: number): Promise<{ questions: Question[]; examId: string }> {
+    // Implementation attached at module bottom for runtime; TypeScript needs declaration
+    return { questions: [], examId: '' } as any;
   }
 
-  async getAvailableYears(): Promise<number[]> {
-    try {
-      return await questionsApiService.getAvailableYears();
-    } catch (error) {
-      console.error('Error fetching years:', error);
-      // Fallback to recent years
-      return [2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015];
-    }
-  }
+
 
   private mapSubjectToDiscipline(subject: string): string {
     const mapping: Record<string, string> = {
@@ -107,37 +126,37 @@ export class SimuladoService {
     return shuffled;
   }
 
-  // Fallback mock data generation (keeping existing functionality)
+  // Fallback mock data generation (simplified for random questions)
   private generateMockSimulado(config: SimuladoConfig): Question[] {
     const questions: Question[] = [];
-    let questionId = 1;
-
-    for (const subject of config.subjects) {
-      for (let i = 0; i < config.questionsPerSubject; i++) {
-        questions.push({
-          id: `mock-${questionId}`,
-          subject,
-          difficulty: ['Fácil', 'Médio', 'Difícil'][Math.floor(Math.random() * 3)],
-          statement: `Esta é uma questão de ${subject} número ${questionId}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`,
-          alternatives: [
-            'Alternativa A - Esta é uma opção possível',
-            'Alternativa B - Esta é outra opção possível',
-            'Alternativa C - Esta é mais uma opção',
-            'Alternativa D - Esta é a quarta opção',
-            'Alternativa E - Esta é a última opção'
-          ],
-          correctAnswer: Math.floor(Math.random() * 5),
-          title: `Questão Mock ${questionId}`,
-          index: questionId,
-          discipline: this.mapSubjectToDiscipline(subject),
-          year: 2023,
-          context: `Contexto da questão ${questionId}`,
-          correctAlternative: 'A',
-          alternativesIntroduction: 'Escolha a alternativa correta:',
-          mongoAlternatives: []
-        });
-        questionId++;
-      }
+    const mockSubjects = ['Matemática', 'Ciências da Natureza', 'Ciências Humanas', 'Linguagens'];
+    
+    for (let i = 0; i < config.totalQuestions; i++) {
+      const questionId = i + 1;
+      const subject = mockSubjects[Math.floor(Math.random() * mockSubjects.length)];
+      
+      questions.push({
+        id: `mock-${questionId}`,
+        subject,
+        difficulty: ['Fácil', 'Médio', 'Difícil'][Math.floor(Math.random() * 3)],
+        statement: `Esta é uma questão de ${subject} número ${questionId}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`,
+        alternatives: [
+          'Alternativa A - Esta é uma opção possível',
+          'Alternativa B - Esta é outra opção possível',
+          'Alternativa C - Esta é mais uma opção',
+          'Alternativa D - Esta é a quarta opção',
+          'Alternativa E - Esta é a última opção'
+        ],
+        correctAnswer: Math.floor(Math.random() * 5),
+        title: `Questão Mock ${questionId}`,
+        index: questionId,
+        discipline: this.mapSubjectToDiscipline(subject),
+        year: 2023,
+        context: `Contexto da questão ${questionId}`,
+        correctAlternative: 'A',
+        alternativesIntroduction: 'Escolha a alternativa correta:',
+        mongoAlternatives: []
+      });
     }
 
     return questions;
@@ -145,3 +164,33 @@ export class SimuladoService {
 }
 
 export const simuladoService = new SimuladoService();
+
+// New method added dynamically for replication (keeps backward compatibility)
+SimuladoService.prototype.replicateExam = async function(existingExamId: string, questionCount: number) {
+  // userId same fake id used elsewhere
+  const userId = '507f1f77bcf86cd799439011';
+
+  const createPayload: ExamCreateRequest = {
+    user_id: userId,
+    examReplicId: existingExamId,
+    question_count: questionCount
+  } as any;
+
+  // Create new exam replicating questions
+  const resp = await examApiService.createExam(createPayload);
+  // Fetch the newly created exam questions
+  const examForUser = await examApiService.getExam(resp.exam_id, userId);
+
+  // Convert questions
+  const questions: Question[] = [];
+  for (const examQuestion of examForUser.questions || []) {
+    try {
+      const converted = convertExamQuestionToQuestion(examQuestion, questions.length);
+      questions.push(converted);
+    } catch (e) {
+      console.warn('Erro ao converter questão replicada:', e);
+    }
+  }
+
+  return { questions, examId: resp.exam_id };
+};

@@ -27,8 +27,11 @@ class QuestionsApiService {
         params.append('offset', filters.offset.toString());
       }
 
-      const response = await axios.get<MongoQuestion[]>(`${API_BASE_URL}/questions?${params}`);
-      return response.data;
+      const response = await axios.get<{success: boolean, data: MongoQuestion[]}>(`${API_BASE_URL}/questions?${params}`);
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching questions from API:', error);
       throw new Error('Failed to fetch questions from server');
@@ -50,8 +53,11 @@ class QuestionsApiService {
         params.append('year', filters.year.toString());
       }
 
-      const response = await axios.get<MongoQuestion[]>(`${API_BASE_URL}/questions/random?${params}`);
-      return response.data;
+      const response = await axios.get<{success: boolean, data: MongoQuestion[]}>(`${API_BASE_URL}/questions/random?${params}`);
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching random questions from API:', error);
       throw new Error('Failed to fetch random questions from server');
@@ -60,8 +66,11 @@ class QuestionsApiService {
 
   async getAvailableDisciplines(): Promise<string[]> {
     try {
-      const response = await axios.get<string[]>(`${API_BASE_URL}/questions/disciplines`);
-      return response.data;
+      const response = await axios.get<{success: boolean, data: {items: string[], total: number}}>(`${API_BASE_URL}/distinct/disciplines`);
+      if (response.data.success && response.data.data.items) {
+        return response.data.data.items;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching disciplines from API:', error);
       throw new Error('Failed to fetch disciplines from server');
@@ -70,18 +79,30 @@ class QuestionsApiService {
 
   async getAvailableYears(): Promise<number[]> {
     try {
-      const response = await axios.get<number[]>(`${API_BASE_URL}/questions/years`);
-      return response.data.sort((a, b) => b - a); // Sort descending
+      const response = await axios.get<{success: boolean, data: {items: number[], total: number}}>(`${API_BASE_URL}/distinct/years`);
+      if (response.data.success && response.data.data.items) {
+        return response.data.data.items.sort((a, b) => b - a); // Sort descending
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching years from API:', error);
-      throw new Error('Failed to fetch years from server');
+      // Fallback: retornar anos padrão se endpoint não existir
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let year = currentYear; year >= 2009; year--) {
+        years.push(year);
+      }
+      return years;
     }
   }
 
   async getQuestionById(id: string): Promise<MongoQuestion | null> {
     try {
-      const response = await axios.get<MongoQuestion>(`${API_BASE_URL}/questions/${id}`);
-      return response.data;
+      const response = await axios.get<{success: boolean, data: MongoQuestion}>(`${API_BASE_URL}/questions/${id}`);
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      return null;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         return null;

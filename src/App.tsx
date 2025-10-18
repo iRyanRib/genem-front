@@ -3,6 +3,7 @@ import SimuladoBuilder, { SimuladoConfig } from "./components/SimuladoBuilder";
 import SimuladoViewer from "./components/SimuladoViewer";
 import SimuladoResults from "./components/SimuladoResults";
 import { Question } from "./types/Question";
+import { ExamDetails } from "./services/examApi";
 import { simuladoService } from "./services/simuladoService";
 
 type AppState = 'builder' | 'simulado' | 'results';
@@ -11,16 +12,17 @@ export default function App() {
   const [currentState, setCurrentState] = useState<AppState>('builder');
   const [currentSimulado, setCurrentSimulado] = useState<Question[]>([]);
   const [simuladoConfig, setSimuladoConfig] = useState<SimuladoConfig | null>(null);
-  const [simuladoAnswers, setSimuladoAnswers] = useState<Record<string, number>>({});
-  const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [examDetails, setExamDetails] = useState<ExamDetails | null>(null);
+  const [examId, setExamId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   const handleGenerateSimulado = async (config: SimuladoConfig) => {
     setIsGenerating(true);
     try {
-      // Use real data from database
-      const questions = await simuladoService.generateSimulado(config);
-      setCurrentSimulado(questions);
+      // Use real data from database - now returns { questions, examId }
+      const result = await simuladoService.generateSimulado(config);
+      setCurrentSimulado(result.questions);
+      setExamId(result.examId);
       setSimuladoConfig(config);
       setCurrentState('simulado');
     } catch (error) {
@@ -31,28 +33,42 @@ export default function App() {
     }
   };
 
-  const handleFinishSimulado = (answers: Record<string, number>, timeSpent: number) => {
-    setSimuladoAnswers(answers);
-    setTimeSpent(timeSpent);
+  const handleFinishSimulado = (examDetails: ExamDetails) => {
+    setExamDetails(examDetails);
     setCurrentState('results');
   };
 
   const handleRestartSimulado = () => {
-    setSimuladoAnswers({});
-    setTimeSpent(0);
+    setExamDetails(null);
     setCurrentState('simulado');
   };
 
   const handleNewSimulado = () => {
     setCurrentSimulado([]);
     setSimuladoConfig(null);
-    setSimuladoAnswers({});
-    setTimeSpent(0);
+    setExamDetails(null);
+    setExamId('');
     setCurrentState('builder');
   };
 
   const handleBackToBuilder = () => {
     setCurrentState('builder');
+  };
+
+  const handleReplicateSimulado = async (existingExamId: string) => {
+    setIsGenerating(true);
+    try {
+      // Replicate exam and get new questions + examId
+      const result = await simuladoService.replicateExam(existingExamId, examDetails?.total_questions || 25);
+      setCurrentSimulado(result.questions);
+      setExamId(result.examId);
+      setCurrentState('simulado');
+    } catch (e) {
+      console.error('Erro ao replicar simulado:', e);
+      throw e;
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (currentState === 'builder') {
@@ -64,25 +80,26 @@ export default function App() {
     );
   }
 
-  if (currentState === 'simulado' && simuladoConfig) {
+  if (currentState === 'simulado' && simuladoConfig && examId) {
     return (
       <SimuladoViewer
         questions={currentSimulado}
         timeLimit={simuladoConfig.timeLimit}
+        examId={examId}
         onFinish={handleFinishSimulado}
         onBack={handleBackToBuilder}
       />
     );
   }
 
-  if (currentState === 'results') {
+  if (currentState === 'results' && examDetails) {
     return (
       <SimuladoResults
+        examDetails={examDetails}
         questions={currentSimulado}
-        answers={simuladoAnswers}
-        timeSpent={timeSpent}
         onRestart={handleRestartSimulado}
         onNewSimulado={handleNewSimulado}
+        onReplicate={handleReplicateSimulado}
       />
     );
   }

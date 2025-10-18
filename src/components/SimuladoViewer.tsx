@@ -7,19 +7,49 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Label } from "./ui/label";
 import { Clock, ArrowLeft, ArrowRight, CheckCircle, Flag } from "lucide-react";
 import { Question } from "../types/Question";
+import { examApiService, ExamDetails } from "../services/examApi";
 
 interface SimuladoViewerProps {
   questions: Question[];
   timeLimit: number;
-  onFinish: (answers: Record<string, number>, timeSpent: number) => void;
+  examId: string; // ID do exame para chamar as APIs
+  onFinish: (examDetails: ExamDetails) => void; // Mudança: agora recebe ExamDetails
   onBack: () => void;
 }
 
-export default function SimuladoViewer({ questions, timeLimit, onFinish, onBack }: SimuladoViewerProps) {
+export default function SimuladoViewer({ questions, timeLimit, examId, onFinish, onBack }: SimuladoViewerProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [timeLeft, setTimeLeft] = useState(timeLimit * 60); // Convert to seconds
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Verificar se há questões disponíveis
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-center text-red-600">
+                ⚠️ Nenhuma Questão Disponível
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p>Não foi possível carregar as questões do simulado.</p>
+              <p className="text-sm text-gray-600">
+                Isso pode acontecer se o banco de dados estiver vazio ou se houver problemas de conectividade.
+              </p>
+              <Button onClick={onBack} className="mt-4">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar para Configuração
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     // Load answer for current question
@@ -50,12 +80,29 @@ export default function SimuladoViewer({ questions, timeLimit, onFinish, onBack 
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
+  const handleAnswerSelect = async (answerIndex: number) => {
     setSelectedAnswer(answerIndex);
-    setAnswers(prev => ({
-      ...prev,
+    const newAnswers = {
+      ...answers,
       [questions[currentQuestion].id]: answerIndex
-    }));
+    };
+    setAnswers(newAnswers);
+
+    // Chamar API para salvar a resposta
+    try {
+      const letterMap = ['A', 'B', 'C', 'D', 'E'];
+      const answerLetter = letterMap[answerIndex];
+      
+      await examApiService.updateAnswer(examId, {
+        question_id: questions[currentQuestion].id,
+        user_answer: answerLetter
+      });
+      
+      console.log(`Resposta salva: Questão ${questions[currentQuestion].id} = ${answerLetter}`);
+    } catch (error) {
+      console.error('Erro ao salvar resposta:', error);
+      // Não bloquear a UI por erro de rede, mas mostrar no console
+    }
   };
 
   const handleNext = () => {
@@ -70,9 +117,27 @@ export default function SimuladoViewer({ questions, timeLimit, onFinish, onBack 
     }
   };
 
-  const handleFinish = () => {
-    const timeSpent = (timeLimit * 60) - timeLeft;
-    onFinish(answers, timeSpent);
+  const handleFinish = async () => {
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Finalizar o exame
+      await examApiService.finalizeExam(examId);
+      console.log('Exame finalizado com sucesso');
+      
+      // Buscar os detalhes do exame com gabarito
+      const examDetails = await examApiService.getExamDetails(examId);
+      console.log('Detalhes do exame obtidos:', examDetails);
+      
+      // Passar os detalhes para a tela de resultados
+      onFinish(examDetails);
+    } catch (error) {
+      console.error('Erro ao finalizar exame:', error);
+      alert('Erro ao finalizar o exame. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const progress = ((currentQuestion + 1) / questions.length) * 100;
@@ -145,9 +210,6 @@ export default function SimuladoViewer({ questions, timeLimit, onFinish, onBack 
                 >
                   {question.subject.charAt(0).toUpperCase() + question.subject.slice(1)}
                 </Badge>
-                <Badge variant="outline">
-                  {question.difficulty}
-                </Badge>
               </div>
             </div>
           </CardHeader>
@@ -194,9 +256,13 @@ export default function SimuladoViewer({ questions, timeLimit, onFinish, onBack 
 
           <div className="flex gap-2">
             {currentQuestion === questions.length - 1 ? (
-              <Button onClick={handleFinish} className="flex items-center gap-2">
+              <Button 
+                onClick={handleFinish} 
+                disabled={isSubmitting}
+                className="flex items-center gap-2"
+              >
                 <Flag className="w-4 h-4" />
-                Finalizar Simulado
+                {isSubmitting ? 'Finalizando...' : 'Finalizar Simulado'}
               </Button>
             ) : (
               <Button 
