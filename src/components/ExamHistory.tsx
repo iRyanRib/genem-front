@@ -14,7 +14,8 @@ import {
   Eye,
   Trash2,
   BarChart3,
-  Award
+  Award,
+  Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,6 +38,7 @@ interface ExamHistoryProps {
 const FAKE_USER_ID = '507f1f77bcf86cd799439011';
 
 export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
+  const [showFilters, setShowFilters] = useState(false);
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalizers, setTotalizers] = useState<ExamTotalizers>({
@@ -57,26 +59,33 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<string | null>(null);
-  
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [dateStart, setDateStart] = useState<string>('');
+  const [dateEnd, setDateEnd] = useState<string>('');
   // Usar ref para manter o estado durante re-renders
   const dialogStateRef = useRef({ isOpen: false, examId: null as string | null });
 
   useEffect(() => {
     loadData();
-  }, [pagination.skip]);
+  }, [pagination.skip, statusFilter, dateStart, dateEnd]);
 
   const loadData = async () => {
     setLoading(true);
     try {
+      // Montar filtros
+      const options: any = {
+        skip: pagination.skip,
+        limit: pagination.limit,
+      };
+      if (statusFilter) options.status = statusFilter;
+      if (dateStart) options.created_after = dateStart;
+      if (dateEnd) options.created_before = dateEnd;
       // Carregar exames paginados e totalizadores em paralelo
       const [examsResponse, totalizersData] = await Promise.all([
-        examApiService.getUserExams(FAKE_USER_ID, {
-          skip: pagination.skip,
-          limit: pagination.limit,
-        }),
+        examApiService.getUserExams(FAKE_USER_ID, options),
         examApiService.getUserTotalizers(FAKE_USER_ID)
       ]);
-      
       setExams(examsResponse.exams);
       setTotalizers(totalizersData);
       setPagination(examsResponse.pagination);
@@ -149,6 +158,7 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="mb-8">
           <Button
@@ -240,15 +250,127 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
 
         {/* Exam List */}
         <Card className="shadow-xl border-0 bg-white/90 backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-2xl">Seus Exames</CardTitle>
-            <CardDescription>
-              {pagination.total > 0 
-                ? `Mostrando ${pagination.returned} de ${pagination.total} exames`
-                : 'Nenhum exame encontrado'}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl">Seus Exames</CardTitle>
+              <CardDescription>
+                {pagination.total > 0 
+                  ? `Mostrando ${pagination.returned} de ${pagination.total} exames`
+                  : 'Nenhum exame encontrado'}
+              </CardDescription>
+            </div>
+            <button
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 shadow transition ${showFilters ? 'ring-2 ring-blue-400' : ''}`}
+              onClick={() => setShowFilters(v => !v)}
+              title="Filtrar exames"
+            >
+              <Filter className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">Filtrar</span>
+            </button>
           </CardHeader>
           <CardContent>
+            {/* Filtros visíveis apenas se showFilters */}
+            {showFilters && (
+              <>
+                {/* Overlay de fundo */}
+                <div 
+                  className="fixed inset-0 bg-black/20 z-40"
+                  onClick={() => setShowFilters(false)}
+                />
+                
+                {/* Panel lateral de filtros */}
+                <div className="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out">
+                  <div className="flex flex-col h-full">
+                    {/* Header do painel */}
+                    <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-blue-100 rounded">
+                            <Filter className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <h3 className="font-semibold text-gray-800">Filtros</h3>
+                        </div>
+                        <button 
+                          onClick={() => setShowFilters(false)}
+                          className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo dos filtros */}
+                    <div className="flex-1 p-4 space-y-4">
+                      {/* Status */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select
+                          value={statusFilter}
+                          onChange={e => setStatusFilter(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">Todos os status</option>
+                          <option value="finished">Finalizado</option>
+                          <option value="in_progress">Em Progresso</option>
+                          <option value="not_started">Não Iniciado</option>
+                        </select>
+                      </div>
+
+                      {/* Data Inicial */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
+                        <input
+                          type="date"
+                          value={dateStart}
+                          onChange={e => setDateStart(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      {/* Data Final */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
+                        <input
+                          type="date"
+                          value={dateEnd}
+                          onChange={e => setDateEnd(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Footer com botões */}
+                    <div className="p-4 border-t border-gray-200 bg-gray-50">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setStatusFilter('');
+                            setDateStart('');
+                            setDateEnd('');
+                            setPagination(prev => ({ ...prev, skip: 0 }));
+                            loadData();
+                          }}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          Limpar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPagination(prev => ({ ...prev, skip: 0 }));
+                            loadData();
+                            setShowFilters(false);
+                          }}
+                          className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -402,8 +524,6 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
         </Card>
 
         {/* Delete Confirmation Dialog */}
-  {/* Renderizando AlertDialog - open: {deleteDialogOpen}, examToDelete: {examToDelete} */}
-        
         {/* Dialog HTML Simples */}
         {deleteDialogOpen && (
           <div 
