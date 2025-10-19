@@ -61,12 +61,24 @@ export interface ExamSummary {
   id: string;
   user_id: string;
   total_questions: number;
+  answered_questions: number; // Número de questões respondidas (para exames em progresso)
   total_correct_answers: number;
   total_wrong_answers: number;
   status: 'not_started' | 'in_progress' | 'finished';
   created_at: string;
   updated_at: string;
   finished_at?: string;
+}
+
+export interface ExamTotalizers {
+  total_exams: number;
+  finished_exams: number;
+  in_progress_exams: number;
+  not_started_exams: number;
+  total_questions_answered: number;
+  total_correct_answers: number;
+  total_wrong_answers: number;
+  average_score: number;
 }
 
 export interface ExamAnswerUpdate {
@@ -181,6 +193,19 @@ class ExamApiService {
     } catch (error) {
       console.error('Error finalizing exam:', error);
       throw new Error('Failed to finalize exam');
+    }
+  }
+
+  /**
+   * Obter totalizadores completos do usuário (todas as estatísticas)
+   */
+  async getUserTotalizers(userId: string = '507f1f77bcf86cd799439011'): Promise<ExamTotalizers> {
+    try {
+      const response = await axios.get<ExamTotalizers>(`${this.baseUrl}/totalizers/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching user totalizers:', error);
+      throw new Error('Failed to fetch user totalizers');
     }
   }
 

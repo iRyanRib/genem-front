@@ -12,6 +12,7 @@ import { Separator } from "./ui/separator";
 interface SimuladoBuilderProps {
   onGenerateSimulado: (config: SimuladoConfig) => void;
   isGenerating?: boolean;
+  onViewHistory?: () => void;
 }
 
 export interface SimuladoConfig {
@@ -23,7 +24,7 @@ export interface SimuladoConfig {
 
 
 
-export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = false }: SimuladoBuilderProps) {
+export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = false, onViewHistory }: SimuladoBuilderProps) {
   const [description, setDescription] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(25);
   const [timeLimit, setTimeLimit] = useState(60);
@@ -52,6 +53,20 @@ export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = fal
           <p className="text-gray-600 text-lg">
             Crie simulados personalizados com inteligência artificial
           </p>
+          
+          {/* Botão para ver histórico */}
+          {onViewHistory && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={onViewHistory}
+                className="hover:bg-blue-50"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Ver Histórico de Exames
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Descrição do Simulado (Em Desenvolvimento) */}

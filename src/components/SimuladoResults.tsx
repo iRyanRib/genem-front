@@ -15,14 +15,16 @@ interface SimuladoResultsProps {
   onRestart: () => void;
   onNewSimulado: () => void;
   onReplicate: (existingExamId: string) => Promise<void>;
+  onBack?: () => void;
 }
 
 export default function SimuladoResults({ 
   examDetails,
   questions,
   onRestart, 
-  onNewSimulado 
-  , onReplicate
+  onNewSimulado,
+  onReplicate,
+  onBack
 }: SimuladoResultsProps) {
   const [isReplicating, setIsReplicating] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
@@ -394,6 +396,16 @@ export default function SimuladoResults({
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          {onBack && (
+            <Button 
+              onClick={onBack}
+              variant="outline" 
+              className="flex items-center gap-2"
+            >
+              <Clock className="w-4 h-4" />
+              Voltar ao Histórico
+            </Button>
+          )}
           <Button 
             onClick={async () => {
               setIsReplicating(true);
