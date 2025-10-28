@@ -4,7 +4,7 @@ import { Question } from '../types/Question';
 import { ExamDetails } from '../services/examApi';
 import { SimuladoConfig } from '../components/SimuladoBuilder';
 
-export type AppState = 'builder' | 'simulado' | 'results' | 'history' | 'viewHistoryExam';
+export type AppState = 'builder' | 'simulado' | 'results' | 'history' | 'viewHistoryExam' | 'profile';
 
 interface AppContextType {
   // Estado da aplicação

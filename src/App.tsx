@@ -1,11 +1,14 @@
 import React from "react";
 import { AppProvider } from "./contexts/AppContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import { AppRoutes } from "./routes/AppRoutes";
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppRoutes />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppRoutes />
+      </AppProvider>
+    </AuthProvider>
   );
 }

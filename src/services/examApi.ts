@@ -1,11 +1,12 @@
 import axios from 'axios';
 import { config } from '../config/app';
+import { getAuthHeaders } from './authApi';
 
 // Interfaces baseadas nos schemas do backend
 export interface ExamCreateRequest {
-  user_id: string;
   topics?: string[];
-  examReplicId?: string; // optional id to replicate questions from an existing exam
+  examReplicId?: string; // alias for frontend convenience
+  exam_replic_id?: string; // internal field name (backend)
   years?: number[];
   question_count?: number; // default: 25, max: 100
 }
@@ -94,7 +95,9 @@ class ExamApiService {
    */
   async createExam(examData: ExamCreateRequest): Promise<ExamResponse> {
     try {
-      const response = await axios.post<ExamResponse>(`${this.baseUrl}/create`, examData);
+      const response = await axios.post<ExamResponse>(`${this.baseUrl}/create`, examData, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error creating exam:', error);
@@ -105,9 +108,11 @@ class ExamApiService {
   /**
    * Obter exame para responder (sem gabarito)
    */
-  async getExam(examId: string, userId: string = '507f1f77bcf86cd799439011'): Promise<ExamForUser> {
+  async getExam(examId: string): Promise<ExamForUser> {
     try {
-      const response = await axios.get<ExamForUser>(`${this.baseUrl}/${examId}?user_id=${userId}`);
+      const response = await axios.get<ExamForUser>(`${this.baseUrl}/${examId}`, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching exam:', error);
@@ -118,9 +123,11 @@ class ExamApiService {
   /**
    * Obter detalhes completos do exame (com gabarito, após finalização)
    */
-  async getExamDetails(examId: string, userId: string = '507f1f77bcf86cd799439011'): Promise<ExamDetails> {
+  async getExamDetails(examId: string): Promise<ExamDetails> {
     try {
-      const response = await axios.get<ExamDetails>(`${this.baseUrl}/${examId}/details?user_id=${userId}`);
+      const response = await axios.get<ExamDetails>(`${this.baseUrl}/${examId}/details`, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching exam details:', error);
@@ -129,10 +136,9 @@ class ExamApiService {
   }
 
   /**
-   * Listar exames de um usuário
+   * Listar exames do usuário autenticado
    */
   async getUserExams(
-    userId: string = '507f1f77bcf86cd799439011',
     options: {
       skip?: number;
       limit?: number;
@@ -160,9 +166,11 @@ class ExamApiService {
       if (options.created_before) params.append('created_before', options.created_before);
 
       const queryString = params.toString();
-      const url = `${this.baseUrl}/user/${userId}${queryString ? '?' + queryString : ''}`;
+      const url = `${this.baseUrl}/user/me${queryString ? '?' + queryString : ''}`;
       
-      const response = await axios.get(url);
+      const response = await axios.get(url, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching user exams:', error);
@@ -173,9 +181,11 @@ class ExamApiService {
   /**
    * Atualizar resposta de uma questão no exame
    */
-  async updateAnswer(examId: string, answerData: ExamAnswerUpdate, userId: string = '507f1f77bcf86cd799439011'): Promise<ExamResponse> {
+  async updateAnswer(examId: string, answerData: ExamAnswerUpdate): Promise<ExamResponse> {
     try {
-      const response = await axios.patch<ExamResponse>(`${this.baseUrl}/${examId}/answer?user_id=${userId}`, answerData);
+      const response = await axios.patch<ExamResponse>(`${this.baseUrl}/${examId}/answer`, answerData, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error updating exam answer:', error);
@@ -186,9 +196,11 @@ class ExamApiService {
   /**
    * Finalizar um exame (POST, não PATCH)
    */
-  async finalizeExam(examId: string, userId: string = '507f1f77bcf86cd799439011'): Promise<ExamResponse> {
+  async finalizeExam(examId: string): Promise<ExamResponse> {
     try {
-      const response = await axios.post<ExamResponse>(`${this.baseUrl}/${examId}/finalize?user_id=${userId}`);
+      const response = await axios.post<ExamResponse>(`${this.baseUrl}/${examId}/finalize`, {}, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error finalizing exam:', error);
@@ -197,11 +209,13 @@ class ExamApiService {
   }
 
   /**
-   * Obter totalizadores completos do usuário (todas as estatísticas)
+   * Obter totalizadores completos do usuário autenticado (todas as estatísticas)
    */
-  async getUserTotalizers(userId: string = '507f1f77bcf86cd799439011'): Promise<ExamTotalizers> {
+  async getUserTotalizers(): Promise<ExamTotalizers> {
     try {
-      const response = await axios.get<ExamTotalizers>(`${this.baseUrl}/totalizers/user/${userId}`);
+      const response = await axios.get<ExamTotalizers>(`${this.baseUrl}/totalizers/me`, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching user totalizers:', error);
@@ -212,9 +226,11 @@ class ExamApiService {
   /**
    * Deletar um exame
    */
-  async deleteExam(examId: string, userId: string = '507f1f77bcf86cd799439011'): Promise<{ message: string; exam_id: string }> {
+  async deleteExam(examId: string): Promise<{ message: string; exam_id: string }> {
     try {
-      const response = await axios.delete<{ message: string; exam_id: string }>(`${this.baseUrl}/${examId}?user_id=${userId}`);
+      const response = await axios.delete<{ message: string; exam_id: string }>(`${this.baseUrl}/${examId}`, {
+        headers: getAuthHeaders(),
+      });
       return response.data;
     } catch (error) {
       console.error('Error deleting exam:', error);

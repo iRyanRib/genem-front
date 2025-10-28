@@ -15,14 +15,9 @@ export class SimuladoService {
 
     try {
       console.log('🌐 Tentando buscar questões reais da API usando sistema de exames...');
-      
-      // Para usar a API de exames, precisamos de um user_id
-      // Por enquanto vamos usar um ID fictício - em um app real isso viria da autenticação
-      const userId = '507f1f77bcf86cd799439011'; // ObjectId fictício
 
       // Criar o exame usando a API - COM ou SEM filtros de tópicos
       const examRequest: ExamCreateRequest = {
-        user_id: userId,
         question_count: Math.min(simuladoConfig.totalQuestions, 100), // Máximo de 100 questões
         // Se há topicIds selecionados, enviar para a API
         ...(simuladoConfig.topicIds && simuladoConfig.topicIds.length > 0 && {
@@ -42,7 +37,7 @@ export class SimuladoService {
       console.log('✅ Exame criado:', examResponse);
 
       // Buscar o exame para obter as questões (sem gabarito)
-      const examForUser = await examApiService.getExam(examResponse.exam_id, userId);
+      const examForUser = await examApiService.getExam(examResponse.exam_id);
       console.log('📋 Exame carregado:', examForUser);
       console.log('📊 Número de questões no exame:', examForUser.questions?.length || 0);
 
@@ -167,19 +162,17 @@ export const simuladoService = new SimuladoService();
 
 // New method added dynamically for replication (keeps backward compatibility)
 SimuladoService.prototype.replicateExam = async function(existingExamId: string, questionCount: number) {
-  // userId same fake id used elsewhere
-  const userId = '507f1f77bcf86cd799439011';
-
   const createPayload: ExamCreateRequest = {
-    user_id: userId,
-    examReplicId: existingExamId,
-    question_count: questionCount
+    exam_replic_id: existingExamId  // Usar o nome interno do campo, não o alias
+    // Não enviar question_count para replicação - usar exatamente as questões do exame original
   } as any;
+
+  console.log(`🔁 Replicando exame ${existingExamId} usando campo exam_replic_id`);
 
   // Create new exam replicating questions
   const resp = await examApiService.createExam(createPayload);
   // Fetch the newly created exam questions
-  const examForUser = await examApiService.getExam(resp.exam_id, userId);
+  const examForUser = await examApiService.getExam(resp.exam_id);
 
   // Convert questions
   const questions: Question[] = [];
@@ -192,5 +185,6 @@ SimuladoService.prototype.replicateExam = async function(existingExamId: string,
     }
   }
 
+  console.log(`✅ Exame replicado com ${questions.length} questões (igual ao original)`);
   return { questions, examId: resp.exam_id };
 };

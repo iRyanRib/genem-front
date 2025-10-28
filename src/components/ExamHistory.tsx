@@ -35,8 +35,6 @@ interface ExamHistoryProps {
   onBack: () => void;
 }
 
-const FAKE_USER_ID = '507f1f77bcf86cd799439011';
-
 export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [exams, setExams] = useState<ExamSummary[]>([]);
@@ -83,8 +81,8 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
       if (dateEnd) options.created_before = dateEnd;
       // Carregar exames paginados e totalizadores em paralelo
       const [examsResponse, totalizersData] = await Promise.all([
-        examApiService.getUserExams(FAKE_USER_ID, options),
-        examApiService.getUserTotalizers(FAKE_USER_ID)
+        examApiService.getUserExams(options),
+        examApiService.getUserTotalizers()
       ]);
       setExams(examsResponse.exams);
       setTotalizers(totalizersData);
@@ -100,7 +98,7 @@ export default function ExamHistory({ onViewExam, onBack }: ExamHistoryProps) {
     if (!examToDelete) return;
 
     try {
-      await examApiService.deleteExam(examToDelete, FAKE_USER_ID);
+      await examApiService.deleteExam(examToDelete);
       // Fechar dialog
       dialogStateRef.current = { isOpen: false, examId: null };
       setDeleteDialogOpen(false);
