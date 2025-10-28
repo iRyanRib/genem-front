@@ -8,6 +8,7 @@ import { Question, MongoQuestion } from "../types/Question";
 import { ExamDetails } from "../services/examApi";
 import { questionsApiService } from "../services/questionsApi";
 import QuestionChatDialog from "./QuestionChatDialog";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface SimuladoResultsProps {
   examDetails: ExamDetails; // Mudança: agora recebe ExamDetails ao invés de questions/answers separados
@@ -338,13 +339,19 @@ export default function SimuladoResults({
                           <div className="space-y-4">
                             <div>
                               <h4 className="font-semibold text-gray-800 mb-2">Enunciado:</h4>
-                              <p className="text-gray-700 whitespace-pre-line">{questionDetail.context}</p>
+                              <MarkdownRenderer 
+                                content={questionDetail.context}
+                                className="text-gray-700"
+                              />
                             </div>
                             
                             {questionDetail.alternativesIntroduction && (
                               <div>
                                 <h4 className="font-semibold text-gray-800 mb-2">Alternativas:</h4>
-                                <p className="text-gray-700 mb-2">{questionDetail.alternativesIntroduction}</p>
+                                <MarkdownRenderer 
+                                  content={questionDetail.alternativesIntroduction}
+                                  className="text-gray-700 mb-2"
+                                />
                               </div>
                             )}
                             
@@ -361,15 +368,41 @@ export default function SimuladoResults({
                                   }`}
                                 >
                                   <div className="flex items-start gap-2">
-                                    <span className="font-medium text-gray-700">
+                                    <span className="font-medium text-gray-700 flex-shrink-0">
                                       {alt.letter})
                                     </span>
-                                    <span className="text-gray-700">{alt.text}</span>
+                                    <div className="flex-1">
+                                      {alt.text ? (
+                                        <MarkdownRenderer 
+                                          content={alt.text}
+                                          className="text-gray-700"
+                                        />
+                                      ) : alt.base64File ? (
+                                        // Renderização direta para imagens base64
+                                        <div>
+                                          <img 
+                                            src={`data:image/${(() => {
+                                              let imageType = 'png';
+                                              if (alt.base64File.startsWith('/9j/')) imageType = 'jpeg';
+                                              else if (alt.base64File.startsWith('iVBORw0KGgo')) imageType = 'png';
+                                              else if (alt.base64File.startsWith('R0lGOD')) imageType = 'gif';
+                                              else if (alt.base64File.startsWith('UklGR')) imageType = 'webp';
+                                              return imageType;
+                                            })()};base64,${alt.base64File}`}
+                                            alt={`Alternativa ${alt.letter}`}
+                                            className="max-w-full h-auto rounded-lg shadow-sm block my-2"
+                                            style={{ maxHeight: '400px' }}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-500">Alternativa sem conteúdo</span>
+                                      )}
+                                    </div>
                                     {alt.letter === examQuestion?.correct_answer && (
-                                      <CheckCircle className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />
+                                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                                     )}
                                     {alt.letter === examQuestion?.user_answer && !isCorrect && (
-                                      <XCircle className="w-4 h-4 text-red-600 ml-auto flex-shrink-0" />
+                                      <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
                                     )}
                                   </div>
                                 </div>

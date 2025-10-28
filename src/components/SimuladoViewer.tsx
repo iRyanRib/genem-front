@@ -8,6 +8,7 @@ import { Label } from "./ui/label";
 import { Clock, ArrowLeft, ArrowRight, CheckCircle, Flag } from "lucide-react";
 import { Question } from "../types/Question";
 import { examApiService, ExamDetails } from "../services/examApi";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface SimuladoViewerProps {
   questions: Question[];
@@ -257,9 +258,10 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
           </CardHeader>
           <CardContent>
             <div className="mb-6">
-              <p className="text-gray-800 leading-relaxed whitespace-pre-line">
-                {question.statement}
-              </p>
+              <MarkdownRenderer 
+                content={question.statement}
+                className="text-gray-800"
+              />
             </div>
 
             <RadioGroup 
@@ -276,7 +278,25 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
                     <span className="font-medium mr-2">
                       {String.fromCharCode(65 + index)})
                     </span>
-                    {alternative}
+                    <div className="w-full">
+                      {alternative.includes('data:image/') ? (
+                        // Renderização direta para imagens base64
+                        <div>
+                          <img 
+                            src={alternative.match(/data:image\/[^;]+;base64,[^)]+/)?.[0] || ''}
+                            alt="Alternativa"
+                            className="max-w-full h-auto rounded-lg shadow-sm block my-2"
+                            style={{ maxHeight: '400px' }}
+                          />
+                        </div>
+                      ) : (
+                        // Renderização normal para texto
+                        <MarkdownRenderer 
+                          content={alternative}
+                          className="w-full"
+                        />
+                      )}
+                    </div>
                   </Label>
                 </div>
               ))}

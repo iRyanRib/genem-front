@@ -8,6 +8,7 @@ import { Bot, User, Send, Loader2, MessageCircle, AlertCircle, Wand2, X } from "
 import { Question } from "../types/Question";
 import { ConversationSession } from "../types/Conversation";
 import { conversationApiService } from "../services/conversationApi";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface QuestionChatDialogProps {
   question: Question;
@@ -230,7 +231,14 @@ export default function QuestionChatDialog({
                                   : 'bg-gray-100 text-gray-800'
                               }`}
                             >
-                              <div className="whitespace-pre-line">{message.content}</div>
+                              {message.role === 'assistant' ? (
+                                <MarkdownRenderer 
+                                  content={message.content}
+                                  className="text-gray-800"
+                                />
+                              ) : (
+                                <div className="whitespace-pre-line">{message.content}</div>
+                              )}
                               <div
                                 className={`text-xs mt-1 ${
                                   message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
