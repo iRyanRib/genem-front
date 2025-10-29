@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -8,9 +8,12 @@ import SimuladoBuilder from '../components/SimuladoBuilder';
 import SimuladoViewer from '../components/SimuladoViewer';
 import SimuladoResults from '../components/SimuladoResults';
 import ExamHistory from '../components/ExamHistory';
+import QuestionViewer from '../components/QuestionViewer';
+import QuestionGenerationWrapper from '../components/QuestionGenerationWrapper';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { simuladoService } from '../services/simuladoService';
 import { examApiService } from '../services/examApi';
+import { generatedQuestionsApiService, GeneratedQuestion } from '../services/generatedQuestionsApi';
 
 export function AppRoutes() {
   const navigate = useNavigate();
@@ -188,6 +191,18 @@ export function AppRoutes() {
     navigateToState('builder', '/builder');
   };
 
+  const handleGenerateQuestionFromReference = async (referenceQuestionId: string) => {
+    try {
+      navigate(`/question/generate/${referenceQuestionId}`);
+    } catch (error) {
+      console.error('Erro ao navegar para geração de questão:', error);
+    }
+  };
+
+  const handleBackFromQuestionGeneration = () => {
+    navigate(-1); // Volta para a página anterior
+  };
+
   const handleReplicateSimulado = async (existingExamId: string) => {
     setIsGenerating(true);
     try {
@@ -264,6 +279,7 @@ export function AppRoutes() {
                 onRestart={handleRestartSimulado}
                 onNewSimulado={handleNewSimulado}
                 onReplicate={handleReplicateSimulado}
+                onGenerateQuestionFromReference={handleGenerateQuestionFromReference}
               />
             ) : (
               <Navigate to="/builder" replace />
@@ -296,10 +312,22 @@ export function AppRoutes() {
                 onNewSimulado={handleNewSimulado}
                 onReplicate={handleReplicateSimulado}
                 onBack={handleBackFromHistoryExamView}
+                onGenerateQuestionFromReference={handleGenerateQuestionFromReference}
               />
             ) : (
               <Navigate to="/history" replace />
             )}
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/question/generate/:questionId" 
+        element={
+          <ProtectedRoute>
+            <QuestionGenerationWrapper
+              onBack={handleBackFromQuestionGeneration}
+            />
           </ProtectedRoute>
         } 
       />

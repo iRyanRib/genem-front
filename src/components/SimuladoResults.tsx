@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, ChevronUp, MessageCircle, Sparkles } from "lucide-react";
 import { Question, MongoQuestion } from "../types/Question";
 import { ExamDetails } from "../services/examApi";
 import { questionsApiService } from "../services/questionsApi";
@@ -17,6 +17,7 @@ interface SimuladoResultsProps {
   onNewSimulado: () => void;
   onReplicate: (existingExamId: string) => Promise<void>;
   onBack?: () => void;
+  onGenerateQuestionFromReference?: (referenceQuestionId: string) => void;
 }
 
 export default function SimuladoResults({ 
@@ -25,7 +26,8 @@ export default function SimuladoResults({
   onRestart, 
   onNewSimulado,
   onReplicate,
-  onBack
+  onBack,
+  onGenerateQuestionFromReference
 }: SimuladoResultsProps) {
   const [isReplicating, setIsReplicating] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
@@ -288,7 +290,7 @@ export default function SimuladoResults({
                                 Incorreta
                               </Badge>
                               <Button
-                                onClick={(e) => {
+                                onClick={(e: React.MouseEvent) => {
                                   e.stopPropagation();
                                   setSelectedQuestionForChat(question);
                                 }}
@@ -296,9 +298,24 @@ export default function SimuladoResults({
                                 size="sm"
                                 className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                               >
-                                <Wand2 className="w-4 h-4 mr-1" />
-                                AI
+                                <MessageCircle className="w-4 h-4 mr-1" />
+                                Chat IA
                               </Button>
+                              {onGenerateQuestionFromReference && (
+                                <Button
+                                  onClick={(e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    onGenerateQuestionFromReference(question.id);
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50"
+                                  title="Gerar nova questão baseada nesta"
+                                >
+                                  <Sparkles className="w-4 h-4 mr-1" />
+                                  Nova
+                                </Button>
+                              )}
                             </div>
                           )}
                           {isExpanded ? (
