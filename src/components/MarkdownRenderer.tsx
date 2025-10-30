@@ -10,7 +10,7 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   return (
-    <div className={cn("prose prose-sm max-w-none", className)}>
+    <div className={cn("prose prose-sm max-w-none break-words", className)} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -21,32 +21,32 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
               {...props}
               className="max-w-full h-auto rounded-lg shadow-sm block my-2"
               loading="lazy"
-              style={{ maxHeight: '400px' }}
+              style={{ maxHeight: '400px', width: '100%', objectFit: 'contain' }}
             />
           ),
           // Customizar tabelas
           table: ({ node, ...props }) => (
-            <div className="overflow-x-auto">
-              <table {...props} className="min-w-full border-collapse border border-gray-300" />
+            <div className="overflow-x-auto max-w-full">
+              <table {...props} className="min-w-full border-collapse border border-gray-300 text-sm" style={{ tableLayout: 'fixed', width: '100%' }} />
             </div>
           ),
           th: ({ node, ...props }) => (
-            <th {...props} className="border border-gray-300 px-4 py-2 bg-gray-50 font-semibold text-left" />
+            <th {...props} className="border border-gray-300 px-4 py-2 bg-gray-50 font-semibold text-left break-words" style={{ wordBreak: 'break-word', maxWidth: '200px' }} />
           ),
           td: ({ node, ...props }) => (
-            <td {...props} className="border border-gray-300 px-4 py-2" />
+            <td {...props} className="border border-gray-300 px-4 py-2 break-words" style={{ wordBreak: 'break-word', maxWidth: '200px' }} />
           ),
           // Customizar links
           a: ({ node, ...props }) => (
-            <a {...props} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer" />
+            <a {...props} className="text-blue-600 hover:text-blue-800 underline break-all" target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }} />
           ),
           // Customizar code blocks
           code: ({ node, ...props }: any) => {
             const isInline = !props.className;
             return isInline ? (
-              <code {...props} className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono" />
+              <code {...props} className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono break-all" style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }} />
             ) : (
-              <code {...props} className="block bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto" />
+              <code {...props} className="block bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto max-w-full whitespace-pre-wrap break-words" style={{ wordBreak: 'break-all', overflowWrap: 'anywhere', maxWidth: '100%' }} />
             );
           },
           // Customizar blockquotes
@@ -68,17 +68,17 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           ),
           // Customizar parágrafos
           p: ({ node, ...props }) => (
-            <p {...props} className="mb-4 leading-relaxed text-gray-700" />
+            <p {...props} className="mb-4 leading-relaxed text-gray-700 break-words overflow-wrap-anywhere" />
           ),
           // Customizar listas
           ul: ({ node, ...props }) => (
-            <ul {...props} className="list-disc list-inside mb-4 space-y-1" />
+            <ul {...props} className="list-disc list-inside mb-4 space-y-1 break-words" />
           ),
           ol: ({ node, ...props }) => (
-            <ol {...props} className="list-decimal list-inside mb-4 space-y-1" />
+            <ol {...props} className="list-decimal list-inside mb-4 space-y-1 break-words" />
           ),
           li: ({ node, ...props }) => (
-            <li {...props} className="text-gray-700" />
+            <li {...props} className="text-gray-700 break-words overflow-wrap-anywhere" />
           ),
         }}
       >

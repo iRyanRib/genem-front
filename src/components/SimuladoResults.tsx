@@ -7,7 +7,7 @@ import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, Chevr
 import { Question, MongoQuestion } from "../types/Question";
 import { ExamDetails } from "../services/examApi";
 import { questionsApiService } from "../services/questionsApi";
-import QuestionChatDialog from "./QuestionChatDialog";
+import SimpleChatDialog from './SimpleChatDialog';
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface SimuladoResultsProps {
@@ -484,7 +484,7 @@ export default function SimuladoResults({
       
       {/* Chat Dialog desacoplado - FORA da div com max-w para ocupar toda a largura */}
       {selectedQuestionForChat && (
-        <QuestionChatDialog 
+        <SimpleChatDialog 
           question={selectedQuestionForChat}
           isWrongAnswer={true}
           onClose={() => setSelectedQuestionForChat(null)}
