@@ -97,6 +97,16 @@ export function convertExamQuestionToQuestion(examQuestion: any, index: number):
     alternatives = examQuestion.alternatives.map((alt: any) => {
       if (typeof alt === 'string') return alt;
       if (alt && alt.text) return alt.text;
+      if (alt && alt.base64File) {
+        // Detectar o tipo de imagem pelo cabeçalho base64
+        let imageType = 'png'; // padrão
+        if (alt.base64File.startsWith('/9j/')) imageType = 'jpeg';
+        else if (alt.base64File.startsWith('iVBORw0KGgo')) imageType = 'png';
+        else if (alt.base64File.startsWith('R0lGOD')) imageType = 'gif';
+        else if (alt.base64File.startsWith('UklGR')) imageType = 'webp';
+        
+        return `![Alternativa](data:image/${imageType};base64,${alt.base64File})`;
+      }
       return String(alt || '');
     });
   }

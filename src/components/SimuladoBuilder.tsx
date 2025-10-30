@@ -5,13 +5,16 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import { Brain, Target, Loader2, Clock, FileText, Sparkles, CheckCircle } from "lucide-react";
+import { Brain, Target, Loader2, Clock, FileText, Sparkles, CheckCircle, User } from "lucide-react";
 import TopicCascadeFilter from "./TopicCascadeFilter";
 import { Separator } from "./ui/separator";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface SimuladoBuilderProps {
   onGenerateSimulado: (config: SimuladoConfig) => void;
   isGenerating?: boolean;
+  onViewHistory?: () => void;
 }
 
 export interface SimuladoConfig {
@@ -23,11 +26,13 @@ export interface SimuladoConfig {
 
 
 
-export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = false }: SimuladoBuilderProps) {
+export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = false, onViewHistory }: SimuladoBuilderProps) {
   const [description, setDescription] = useState("");
   const [totalQuestions, setTotalQuestions] = useState(25);
   const [timeLimit, setTimeLimit] = useState(60);
   const [topicIds, setTopicIds] = useState<string[]>([]);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleGenerate = () => {
     onGenerateSimulado({
@@ -38,10 +43,36 @@ export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = fal
     });
   };
 
+  const handleViewProfile = () => {
+    navigate('/profile');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
+        {/* Header com barra de usuário */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Olá, {user?.name}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleViewProfile}
+            className="hover:bg-blue-50"
+          >
+            <User className="w-4 h-4 mr-2" />
+            Perfil
+          </Button>
+        </div>
+        
+        {/* Header Principal */}
         <div className="text-center mb-10 animate-in fade-in slide-in-from-top duration-500">
           <div className="inline-block p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mb-4 shadow-lg">
             <Brain className="w-12 h-12 text-white" />
@@ -52,6 +83,20 @@ export default function SimuladoBuilder({ onGenerateSimulado, isGenerating = fal
           <p className="text-gray-600 text-lg">
             Crie simulados personalizados com inteligência artificial
           </p>
+          
+          {/* Botão para ver histórico */}
+          {onViewHistory && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={onViewHistory}
+                className="hover:bg-blue-50"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Ver Histórico de Exames
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Descrição do Simulado (Em Desenvolvimento) */}

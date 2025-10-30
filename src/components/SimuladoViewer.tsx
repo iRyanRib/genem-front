@@ -8,6 +8,7 @@ import { Label } from "./ui/label";
 import { Clock, ArrowLeft, ArrowRight, CheckCircle, Flag } from "lucide-react";
 import { Question } from "../types/Question";
 import { examApiService, ExamDetails } from "../services/examApi";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface SimuladoViewerProps {
   questions: Question[];
@@ -23,6 +24,36 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
   const [timeLeft, setTimeLeft] = useState(timeLimit * 60); // Convert to seconds
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAnswers, setIsLoadingAnswers] = useState(true);
+
+  // Carregar respostas já salvas ao montar o componente
+  useEffect(() => {
+    const loadSavedAnswers = async () => {
+      try {
+        const examDetails = await examApiService.getExamDetails(examId);
+        
+        // Mapear as respostas salvas para o formato do estado local
+        const savedAnswers: Record<string, number> = {};
+        const letterToIndex: Record<string, number> = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4 };
+        
+        examDetails.questions.forEach((q) => {
+          if (q.user_answer) {
+            savedAnswers[q.question_id] = letterToIndex[q.user_answer] || 0;
+          }
+        });
+        
+        setAnswers(savedAnswers);
+        console.log(`Carregadas ${Object.keys(savedAnswers).length} respostas já salvas`);
+      } catch (error) {
+        console.error('Erro ao carregar respostas salvas:', error);
+        // Se der erro, continuar sem as respostas salvas
+      } finally {
+        setIsLoadingAnswers(false);
+      }
+    };
+
+    loadSavedAnswers();
+  }, [examId]);
 
   // Verificar se há questões disponíveis
   if (!questions || questions.length === 0) {
@@ -162,26 +193,38 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </Button>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4" />
-              {answeredQuestions}/{questions.length} respondidas
+        {/* Loading State */}
+        {isLoadingAnswers ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <Clock className="w-12 h-12 text-blue-500 animate-spin" />
+                <p className="text-lg text-gray-600">Carregando exame...</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Voltar
+              </Button>
+              
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <CheckCircle className="w-4 h-4" />
+                  {answeredQuestions}/{questions.length} respondidas
+                </div>
+                <div className="flex items-center gap-2 text-lg font-medium">
+                  <Clock className="w-5 h-5 text-red-500" />
+                  <span className={timeLeft < 300 ? "text-red-500" : "text-gray-700"}>
+                    {formatTime(timeLeft)}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-lg font-medium">
-              <Clock className="w-5 h-5 text-red-500" />
-              <span className={timeLeft < 300 ? "text-red-500" : "text-gray-700"}>
-                {formatTime(timeLeft)}
-              </span>
-            </div>
-          </div>
-        </div>
 
         {/* Progress */}
         <div className="mb-6">
@@ -215,9 +258,10 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
           </CardHeader>
           <CardContent>
             <div className="mb-6">
-              <p className="text-gray-800 leading-relaxed whitespace-pre-line">
-                {question.statement}
-              </p>
+              <MarkdownRenderer 
+                content={question.statement}
+                className="text-gray-800"
+              />
             </div>
 
             <RadioGroup 
@@ -234,7 +278,25 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
                     <span className="font-medium mr-2">
                       {String.fromCharCode(65 + index)})
                     </span>
-                    {alternative}
+                    <div className="w-full">
+                      {alternative.includes('data:image/') ? (
+                        // Renderização direta para imagens base64
+                        <div>
+                          <img 
+                            src={alternative.match(/data:image\/[^;]+;base64,[^)]+/)?.[0] || ''}
+                            alt="Alternativa"
+                            className="max-w-full h-auto rounded-lg shadow-sm block my-2"
+                            style={{ maxHeight: '400px' }}
+                          />
+                        </div>
+                      ) : (
+                        // Renderização normal para texto
+                        <MarkdownRenderer 
+                          content={alternative}
+                          className="w-full"
+                        />
+                      )}
+                    </div>
                   </Label>
                 </div>
               ))}
@@ -293,6 +355,8 @@ export default function SimuladoViewer({ questions, timeLimit, examId, onFinish,
             ))}
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

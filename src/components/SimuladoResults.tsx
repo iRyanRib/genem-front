@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
+import { CheckCircle, XCircle, Clock, RotateCcw, Home, Wand2, ChevronDown, ChevronUp, MessageCircle, Sparkles } from "lucide-react";
 import { Question, MongoQuestion } from "../types/Question";
 import { ExamDetails } from "../services/examApi";
 import { questionsApiService } from "../services/questionsApi";
 import QuestionChatDialog from "./QuestionChatDialog";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface SimuladoResultsProps {
   examDetails: ExamDetails; // Mudança: agora recebe ExamDetails ao invés de questions/answers separados
@@ -15,14 +16,18 @@ interface SimuladoResultsProps {
   onRestart: () => void;
   onNewSimulado: () => void;
   onReplicate: (existingExamId: string) => Promise<void>;
+  onBack?: () => void;
+  onGenerateQuestionFromReference?: (referenceQuestionId: string) => void;
 }
 
 export default function SimuladoResults({ 
   examDetails,
   questions,
   onRestart, 
-  onNewSimulado 
-  , onReplicate
+  onNewSimulado,
+  onReplicate,
+  onBack,
+  onGenerateQuestionFromReference
 }: SimuladoResultsProps) {
   const [isReplicating, setIsReplicating] = useState(false);
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
@@ -285,7 +290,7 @@ export default function SimuladoResults({
                                 Incorreta
                               </Badge>
                               <Button
-                                onClick={(e) => {
+                                onClick={(e: React.MouseEvent) => {
                                   e.stopPropagation();
                                   setSelectedQuestionForChat(question);
                                 }}
@@ -293,9 +298,24 @@ export default function SimuladoResults({
                                 size="sm"
                                 className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                               >
-                                <Wand2 className="w-4 h-4 mr-1" />
-                                AI
+                                <MessageCircle className="w-4 h-4 mr-1" />
+                                Chat IA
                               </Button>
+                              {onGenerateQuestionFromReference && (
+                                <Button
+                                  onClick={(e: React.MouseEvent) => {
+                                    e.stopPropagation();
+                                    onGenerateQuestionFromReference(question.id);
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50"
+                                  title="Gerar nova questão baseada nesta"
+                                >
+                                  <Sparkles className="w-4 h-4 mr-1" />
+                                  Nova
+                                </Button>
+                              )}
                             </div>
                           )}
                           {isExpanded ? (
@@ -336,13 +356,19 @@ export default function SimuladoResults({
                           <div className="space-y-4">
                             <div>
                               <h4 className="font-semibold text-gray-800 mb-2">Enunciado:</h4>
-                              <p className="text-gray-700 whitespace-pre-line">{questionDetail.context}</p>
+                              <MarkdownRenderer 
+                                content={questionDetail.context}
+                                className="text-gray-700"
+                              />
                             </div>
                             
                             {questionDetail.alternativesIntroduction && (
                               <div>
                                 <h4 className="font-semibold text-gray-800 mb-2">Alternativas:</h4>
-                                <p className="text-gray-700 mb-2">{questionDetail.alternativesIntroduction}</p>
+                                <MarkdownRenderer 
+                                  content={questionDetail.alternativesIntroduction}
+                                  className="text-gray-700 mb-2"
+                                />
                               </div>
                             )}
                             
@@ -359,15 +385,41 @@ export default function SimuladoResults({
                                   }`}
                                 >
                                   <div className="flex items-start gap-2">
-                                    <span className="font-medium text-gray-700">
+                                    <span className="font-medium text-gray-700 flex-shrink-0">
                                       {alt.letter})
                                     </span>
-                                    <span className="text-gray-700">{alt.text}</span>
+                                    <div className="flex-1">
+                                      {alt.text ? (
+                                        <MarkdownRenderer 
+                                          content={alt.text}
+                                          className="text-gray-700"
+                                        />
+                                      ) : alt.base64File ? (
+                                        // Renderização direta para imagens base64
+                                        <div>
+                                          <img 
+                                            src={`data:image/${(() => {
+                                              let imageType = 'png';
+                                              if (alt.base64File.startsWith('/9j/')) imageType = 'jpeg';
+                                              else if (alt.base64File.startsWith('iVBORw0KGgo')) imageType = 'png';
+                                              else if (alt.base64File.startsWith('R0lGOD')) imageType = 'gif';
+                                              else if (alt.base64File.startsWith('UklGR')) imageType = 'webp';
+                                              return imageType;
+                                            })()};base64,${alt.base64File}`}
+                                            alt={`Alternativa ${alt.letter}`}
+                                            className="max-w-full h-auto rounded-lg shadow-sm block my-2"
+                                            style={{ maxHeight: '400px' }}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-500">Alternativa sem conteúdo</span>
+                                      )}
+                                    </div>
                                     {alt.letter === examQuestion?.correct_answer && (
-                                      <CheckCircle className="w-4 h-4 text-green-600 ml-auto flex-shrink-0" />
+                                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                                     )}
                                     {alt.letter === examQuestion?.user_answer && !isCorrect && (
-                                      <XCircle className="w-4 h-4 text-red-600 ml-auto flex-shrink-0" />
+                                      <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
                                     )}
                                   </div>
                                 </div>
@@ -394,6 +446,16 @@ export default function SimuladoResults({
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          {onBack && (
+            <Button 
+              onClick={onBack}
+              variant="outline" 
+              className="flex items-center gap-2"
+            >
+              <Clock className="w-4 h-4" />
+              Voltar ao Histórico
+            </Button>
+          )}
           <Button 
             onClick={async () => {
               setIsReplicating(true);
